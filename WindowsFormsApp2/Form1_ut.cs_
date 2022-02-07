@@ -1,0 +1,239 @@
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace WindowsFormsApp2
+{
+	
+
+	public partial class Form1 : Form
+	{
+
+		class My_defect
+		{
+			public int x; //координата x начала точки
+			public int y; //координата y начала точки
+			public int len_x; //длина по иксу
+			public int len_y; //длина по игреку
+		}
+
+
+		double[,] values1;  //тут храним считанный массив
+		int XSize;			//размерность по Х
+		int Ysize;          // разерность по Y
+		Bitmap my_bitmap;
+				
+		public Form1()
+		{
+			InitializeComponent();
+		}
+
+		static double find_max (double[,] array)
+		{
+			double max = 0;
+			foreach (var item in array)
+			{
+				if (item > max) max = item;
+			}
+			return max;
+		}
+		
+
+
+
+
+		My_defect find_defect(double[,] array, int threshold)
+		{
+			My_defect dd = new My_defect();
+			int resolution = 300;
+			int count_y = 2;
+			int count_x = 2;
+			int count_x_max = 0;
+			int count_y_max = 0;
+			int xx;
+			int yy;
+			int sum = 0;
+			int sum1 = 0;
+			double local_max=0;
+			double[,] sub_array = new double[resolution, resolution];
+
+			for (int x = 0; x < array.GetLength(0) - 2; x++)
+			{
+				for (int y = 0; y < array.GetLength(1) - 2; y++)
+				{
+					if (array[x, y] > threshold)									//нашли точку выше порога
+					{
+						dd.x = x;
+						dd.y = y;
+						while (sum-sum1 >= 0)
+						{
+							sum1 = sum;
+							for (var i = 1; i < count_x; i++)						//заполняю подмассив
+							{
+								for (var j = 1; j < count_x; j++)
+								{
+									sub_array[i, j] = array[x + i, y + j];
+								}
+							}
+							foreach (double nn in sub_array)
+							{
+								if (nn > threshold) sum++;
+							}
+							count_x++;
+							count_y++;
+						}
+						dd.len_x = sub_array.GetLength(0);
+						dd.len_y = sub_array.GetLength(1);
+						x = x + dd.len_x;
+						y = y + dd.len_y;
+					}
+
+				}
+			}
+			return dd;
+		}
+		
+		private void button1_Click(object sender, EventArgs e) // рисуем картинку
+		{
+
+			my_bitmap = new Bitmap(XSize, Ysize);
+			int curr_color = 0;
+
+			double maxx = find_max(values1);
+			
+			for (var x = 0; x < my_bitmap.Width; x++)
+			{
+				for (var y = 0; y < my_bitmap.Height; y++)
+				{
+					curr_color = Convert.ToInt32(250*Math.Abs(Math.Floor(values1[y, x])/maxx));
+					my_bitmap.SetPixel(x, y, Color.FromArgb(curr_color, 255-curr_color, 255 - curr_color)); // с помощью SetPixel задаём цвет отдельного пикселя
+				}
+			}
+
+			pictureBox1.Image = my_bitmap;
+		}
+
+		private void button2_Click(object sender, EventArgs e)
+		{
+			var fileContent = string.Empty;
+			var filePath = string.Empty;
+
+			using (OpenFileDialog openFileDialog = new OpenFileDialog())
+			{
+				openFileDialog.InitialDirectory = "c:/A/";
+				openFileDialog.Filter = "csv files (*.csv)|*.csv|All files (*.*)|*.*";
+				openFileDialog.FilterIndex = 2;
+				openFileDialog.RestoreDirectory = true;
+
+				if (openFileDialog.ShowDialog() == DialogResult.OK)
+				{
+					//Get the path of specified file
+					filePath = openFileDialog.FileName;
+
+					//Read the contents of the file into a stream
+					var fileStream = openFileDialog.OpenFile();
+
+					using (StreamReader reader = new StreamReader(fileStream))
+					{
+						fileContent = reader.ReadToEnd();
+					}
+				}
+			}
+		
+				// Получить текст файла.
+				string whole_file = System.IO.File.ReadAllText(filePath);
+
+				// Разделение на строки.
+				whole_file = whole_file.Replace('\n', '\r');
+				string[] lines = whole_file.Split(new char[] { '\r' },	StringSplitOptions.RemoveEmptyEntries);
+
+				// Посмотрим, сколько строк и столбцов есть.
+				int num_rows = lines.Length;
+				int num_cols = lines[0].Split(',').Length;
+
+			// Выделим массив данных.
+			//string[,] values = new string[num_rows, num_cols];
+			double[,] values = new double[num_rows, num_cols];
+		
+			// Загрузите массив.
+			for (int r = 0; r < num_rows; r++)
+			{
+					string[] line_r = lines[r].Split(',');
+					for (int c = 0; c < num_cols; c++)
+					{
+					values[r, c] = Convert.ToDouble(line_r[c]);			//тут в values хранится массив данных в строках
+					}
+			}
+			values1 = values;											//передаем в общую переменную
+			XSize = num_cols;
+			Ysize = num_rows;
+			int max =  Convert.ToInt16(find_max(values));
+			trackBar1.Maximum = max;
+			label2.Text = max.ToString();
+		}//считываем данные из файла
+
+		private void trackBar1_Scroll(object sender, EventArgs e)
+		{
+			label1.Text = String.Format("Значение порога: {0}", trackBar1.Value);
+		} // считываем верхний порог из trackbar
+
+		private void button3_Click(object sender, EventArgs e)	//рисуем квадратик
+		{
+			Graphics g = Graphics.FromImage(pictureBox1.Image);
+			Pen blackPen = new Pen(Color.Black, 1);
+			My_defect md;
+
+			for (var x = 1; x < my_bitmap.Width-1; x++)
+			{
+				for (var y = 1; y < my_bitmap.Height-1; y++)
+				{
+					if (values1[y, x] > trackBar1.Value)
+					{
+						md = find_defect(values1, trackBar1.Value);
+						g.DrawRectangle(blackPen, md.x, md.y, md.len_x+30, md.len_y+30);   //кординаты верхнего левого угла, длина, высота
+						pictureBox1.Image = my_bitmap;
+					}
+				}
+			}
+		}
+
+		private void button4_Click(object sender, EventArgs e)
+		{
+			int temp1 = 0;
+			int temp2 = 0;
+			int y_count = 0;
+
+			Graphics g = Graphics.FromImage(pictureBox1.Image);
+			Pen blackPen = new Pen(Color.Black, 1);
+
+			for (var x = 1; x < my_bitmap.Width - 1; x++)
+			{
+				for (var y = 1; y < my_bitmap.Height - 1; y++)
+				{
+					if (values1[y, x] > trackBar1.Value)
+					{
+						if (y_count==0) temp1 = y;
+						y_count++;
+
+					}
+
+					g.DrawRectangle(blackPen, x - 10, temp1 - 10, y_count, 30);   //кординаты верхнего левого угла, длина, высота
+					pictureBox1.Image = my_bitmap;
+					y_count = 0;
+					temp1 = 0;
+				}
+			}
+			//Graphics g = Graphics.FromImage(pictureBox1.Image);
+			//Pen blackPen = new Pen(Color.Black, 1);
+			//g.DrawRectangle(blackPen, 10, 10, 100, 50);   //кординаты верхнего левого угла, длина, высота
+			//pictureBox1.Image = my_bitmap;
+		}
+	}
+}
